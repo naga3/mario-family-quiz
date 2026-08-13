@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<meta name="description" content="好きな色を選ぶだけで、あなたがどのキャラタイプか分かるジョーク診断。">
+<meta name="description" content="かんたんな質問に答えるだけの職業診断。……と思ったら？">
 </head>
 <body>
-<title>マリオファミリー診断</title>
+<title>職業診断</title>
 <style>
   :root{
     --sky:#5c94fc; --sky2:#8fb7ff;
@@ -183,10 +183,45 @@
   .again button:focus-visible{outline:3px solid var(--red);outline-offset:3px}
 
   .foot{text-align:center;color:#9c8663;font-size:.72rem;font-weight:700;margin:20px 0 0}
+
+  /* loading */
+  .loadwrap{padding:34px 10px 30px; text-align:center}
+  .spinner{
+    width:58px;height:58px;margin:0 auto 20px;border-radius:50%;
+    border:7px solid #e7d9b8; border-top-color:var(--red);
+    animation:spin .9s linear infinite;
+  }
+  .loadtitle{font-weight:900; font-size:1.2rem; color:var(--ink); margin:0}
+  .dots i{animation:blink 1s infinite}
+  .dots i:nth-child(2){animation-delay:.2s}
+  .dots i:nth-child(3){animation-delay:.4s}
+  .lbar{
+    height:18px; max-width:280px; margin:18px auto 10px; overflow:hidden;
+    background:#fff; border:3px solid var(--line); border-radius:10px;
+    box-shadow:0 3px 0 rgba(0,0,0,.14);
+  }
+  .lbar-fill{height:100%; width:0;
+    background:repeating-linear-gradient(45deg,var(--gold) 0 12px,var(--coin) 12px 24px);
+    transition:width .12s linear}
+  .loadsub{color:#8a7350; font-weight:700; font-size:.86rem; margin:0}
+
+  /* surprise reveal */
+  .surprise-tag{
+    display:inline-block; margin:0 auto 4px; position:relative; left:50%; transform:translateX(-50%);
+    font-weight:900; font-size:1.05rem; color:#fff; letter-spacing:.02em;
+    background:var(--red); border:4px solid var(--line); border-radius:14px;
+    padding:8px 22px; box-shadow:0 5px 0 #8f1512;
+    animation:wobble .6s ease-in-out 2;
+  }
+  .surprise-wrap{text-align:center; margin-bottom:12px}
+
   .hidden{display:none !important}
 
-  @keyframes pop{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
+  @keyframes pop{0%{opacity:0;transform:scale(.7) rotate(-6deg)}60%{opacity:1;transform:scale(1.08) rotate(3deg)}100%{opacity:1;transform:none}}
   @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes blink{0%,100%{opacity:.2}50%{opacity:1}}
+  @keyframes wobble{0%,100%{transform:translateX(-50%) rotate(0)}25%{transform:translateX(-50%) rotate(-4deg)}75%{transform:translateX(-50%) rotate(4deg)}}
   @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
   .qfade{animation:rise .32s ease both}
   @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
@@ -195,12 +230,12 @@
 <div class="panel">
   <!-- START -->
   <section id="start">
-    <div style="text-align:center"><span class="badge-q"><span class="q">?</span>ジョーク診断</span></div>
-    <h1 style="margin-top:14px">キミは<span class="r">マリオ</span>ファミリーの<br>だ〜れだ？</h1>
-    <p class="sub">たった数問で、キミの正体があきらかに！</p>
-    <p class="lead">好きな色をポチッと選んでいくだけ。<br>選び方しだいで、思わぬキャラに化けるぞ。</p>
-    <button class="start-btn" id="beginBtn">▶ はじめる</button>
-    <p class="foot">全 2 問（ときどき分岐でのびる）</p>
+    <div style="text-align:center"><span class="badge-q"><span class="q">?</span>WORK APTITUDE</span></div>
+    <h1 style="margin-top:14px">職業<span class="r">診断</span></h1>
+    <p class="sub">かんたんな質問に答えるだけ。<br>あなたに“向いている職業”を診断します。</p>
+    <p class="lead">直感でポチッと選んでいってください。<br>結果は……お楽しみに。</p>
+    <button class="start-btn" id="beginBtn">▶ 診断をはじめる</button>
+    <p class="foot">所要 1〜2分 ・ 全 2 問</p>
   </section>
 
   <!-- QUIZ -->
@@ -211,6 +246,16 @@
     </div>
     <div id="qmount"></div>
     <button class="back hidden" id="backBtn">← もどる</button>
+  </section>
+
+  <!-- LOADING -->
+  <section id="loading" class="hidden">
+    <div class="loadwrap">
+      <div class="spinner"></div>
+      <p class="loadtitle">あなたの適職を分析中<span class="dots"><i>.</i><i>.</i><i>.</i></span></p>
+      <div class="lbar"><div class="lbar-fill" id="lbarFill"></div></div>
+      <p class="loadsub" id="loadsub">性格の傾向を照合しています</p>
+    </div>
   </section>
 
   <!-- RESULT -->
@@ -294,13 +339,13 @@
   };
 
   const $=s=>document.querySelector(s);
-  const start=$("#start"),quiz=$("#quiz"),result=$("#result");
+  const start=$("#start"),quiz=$("#quiz"),loading=$("#loading"),result=$("#result");
   const qmount=$("#qmount"),coins=$("#coins"),qlabel=$("#qlabel"),backBtn=$("#backBtn");
 
   let path=[];       // stack of node keys visited (questions only)
   let cur="color";
 
-  function show(el){[start,quiz,result].forEach(x=>x.classList.add("hidden"));el.classList.remove("hidden");}
+  function show(el){[start,quiz,loading,result].forEach(x=>x.classList.add("hidden"));el.classList.remove("hidden");}
 
   function renderCoins(active){
     // show a coin per answered + current; keeps it playful, not a hard count
@@ -502,7 +547,7 @@
     return ''+
     '<div class="hero">'+
       '<div class="charbadge"><svg viewBox="0 0 100 100" aria-hidden="true">'+AV(id)+'</svg></div>'+
-      '<p class="youare">キミのタイプは…</p>'+
+      '<p class="youare">あなたに向いている職業は…</p>'+
       '<h2 class="cname" style="color:'+c.bg+'">'+c.n+'</h2>'+
       '<p class="ctag" style="color:'+c.bg+'">'+c.tag+'</p>'+
       '<p class="cdesc">'+c.desc+'</p>'+
@@ -515,9 +560,32 @@
   }
 
   function showResult(id){
-    $(".rtop").textContent="＼ しんだんけっか ／";
+    show(loading);
+    window.scrollTo({top:0});
+    runAnalysis(function(){ reveal(id); });
+  }
+
+  function runAnalysis(done){
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+    const fill=$("#lbarFill"), sub=$("#loadsub");
+    const msgs=["性格の傾向を照合しています","適性データを分析しています","あなたの天職を探しています","まもなく結果が出ます…"];
+    if(reduce){ setTimeout(done,300); return; }
+    let p=0, mi=0; fill.style.width="0%";
+    const t=setInterval(function(){
+      p += 4 + Math.random()*7; if(p>100) p=100;
+      fill.style.width=p+"%";
+      const nm=Math.min(msgs.length-1, Math.floor(p/26));
+      if(nm!==mi){ mi=nm; sub.textContent=msgs[nm]; }
+      if(p>=100){ clearInterval(t); setTimeout(done,400); }
+    },120);
+  }
+
+  function reveal(id){
+    $(".rtop").textContent="＼ あなたにピッタリの“職業”は…！？ ／";
     $("#allBtn").classList.remove("hidden");
-    $("#resMount").innerHTML='<div class="result">'+charCard(id)+'</div>';
+    $("#resMount").innerHTML=
+      '<div class="result"><div class="surprise-wrap"><span class="surprise-tag">🎮 まさかの…！？</span></div>'
+      +charCard(id)+'</div>';
     show(result);
     window.scrollTo({top:0});
   }
